@@ -1,0 +1,34 @@
+---
+
+- name: Pre-Flight checks
+  assert:
+    that:
+      - dgfw_container_name is defined
+
+- name: Create local script directory
+  file:
+    path: "{{ dgfw_local_bin_dir }}"
+    state: directory
+
+- name: Deploy mini-geofirewall
+  template:
+    src: docker-geofirewall.sh.j2
+    dest: "{{ dgfw_script_path }}"
+    owner: "{{ dgfw_script_owner }}"
+    group: "{{ dgfw_script_group }}"
+    mode: "{{ dgfw_script_mode }}"
+  register: dgfw_deployment
+
+- name: "setup cron job for automated firewall setup"
+  copy:
+    content: |
+      0 0 1 * * root {{ dgfw_script_path }} >> /var/log/{{ dgfw_script_logs }} 2>&1
+      0 1 1 1 * root /bin/mv -f {{ dgfw_script_logs }} {{ dgfw_script_logs }}.1
+    dest: "/etc/cron.d/docker-geofirewall-{{ dgfw_container_name }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+
+- name: Reload mini-geofirewall (if changed or forced)
+  command: "{{ dgfw_script_path }}"
+  when: dgfw_deployment is changed or dgfw_force_reload == True

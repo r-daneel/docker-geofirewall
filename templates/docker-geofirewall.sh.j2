@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+allowed_county_codes="
+{% for dgfw_country_code in dgfw_allowed_country_codes %}
+{{ dgfw_country_code }}
+{% endfor %}
+"
+
+allowed_networks="
+{% for dgfw_network in dgfw_allowed_networks %}
+{{ dgfw_network }}
+{% endfor %}
+"
+
+filtered_ports="
+{% for dgfw_port in dgfw_allowed_ports %}
+{{ dgfw_port }}
+{% endfor %}
+"
+
+# main()
+
+DKR="docker"
+IPT="iptables"
+if [ $(id -u) -ne 0 ]; then
+  echo "This script must be run as root. Current id:"
+  id
+fi
+
+NSDIR="/var/run/netns"
+NSCMD="ip netns exec {{ dgfw_container_name }} ${IPT}"
+
+# CHECK FOR GEOIP
+${IPT} -m geoip --help >/dev/null
+if [ ${?} -ne 0 ]; then
+  echo "ERROR"
+  echo "This script needs the 'xt_geoip' kernel module installed to do country code filtering"
+  echo "All county code related functions will be skipped"
+  allowed_county_codes=""
+fi
+
+# CHECK FOR DOCKER
+${DKR} --help >/dev/null
+if [ ${?} -ne 0 ]; then
+  echo "CRITICAL"
+  echo "${DKR} does not seem to be installed. Stopping here."
+  exit 1
+fi
+
+# ENABLE ACCESS TO THE CONTAINER NAMESPACE
+
+container_pid=$(${DKR} inspect -f '{{ "{{" }} .State.Pid {{ "}}" }}' {{ dgfw_container_name }})
+#container_pid=$(${DKR} inspect {{ dgfw_container_name }} | tr -d '",' | awk '$1=="Pid:" { print $2 }')
+
+if [ ! -d "${NSDIR}" ]; then
+  mkdir "${NSDIR}" || { echo "'mkdir ${NSDIR}' failed"; exit 1; }
+fi
+
+ln -sf "/proc/${container_pid}/ns/net" "/var/run/netns/{{ dgfw_container_name }}" \
+|| { echo "'ln -sf /proc/${container_pid}/ns/net /var/run/netns/{{ dgfw_container_name }}' failed"; exit 1; }
+
+# RESET DEFAULT POLICY
+${NSCMD} -P INPUT ACCEPT
+# FLUSH ALL RULES
+${NSCMD} -F INPUT
+# ALLOW RELATED & ESTABLISHED CONNECTIONS
+${NSCMD} -A INPUT \
+         -m state --state RELATED,ESTABLISHED \
+         -j ACCEPT
+
+for network in ${allowed_networks}
+do
+  for port in ${filtered_ports}
+  do
+    ${NSCMD} -A INPUT \
+             -s "${network}" \
+             -p tcp \
+             -m tcp --dport "${port}" \
+             -m conntrack --ctstate NEW \
+             -j ACCEPT
+  done
+done
+
+for country_code in ${allowed_county_codes}
+do
+  for port in ${filtered_ports}
+  do
+    ${NSCMD} -A INPUT \
+             -p tcp \
+             -m tcp --dport "${port}" \
+             -m conntrack --ctstate NEW \
+             -m geoip --source-country "${country_code}" \
+             -j ACCEPT
+  done
+done
+
+# LOG ALL THE REST
+${NSCMD} -A INPUT \
+         -j LOG \
+         --log-prefix "dropped (INPUT): "
+
+# DROP ALL THE REST
+${NSCMD} -P INPUT DROP
+
+${NSCMD} -S INPUT

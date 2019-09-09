@@ -1,0 +1,20 @@
+---
+
+dgfw_container_name: ""
+
+dgfw_allowed_networks:
+  - "127.0.0.1/8"
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
+
+dgfw_allowed_country_codes: []
+
+dgfw_force_reload: False
+dgfw_local_bin_dir: "/usr/local/bin"
+dgfw_script_path: "{{ dgfw_local_bin_dir }}/docker-{{ dgfw_container_name }}-geofirewall.sh"
+dgfw_script_logs: "/var/log/docker-{{ dgfw_container_name }}-geofirewall.log"
+dgfw_script_owner: "root"
+dgfw_script_group: "root"
+dgfw_script_mode: "0755"
+
