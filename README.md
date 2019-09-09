@@ -2,10 +2,9 @@
 
 This is a tiny bash script setting up a firewall inside a docker container.
 
-It is VERY stupid in nature and assumes a lot of things:
+It is VERY stupid in nature and assumes a couple of things:
 - The container's iptables tables/chains are empty and can be flushed
-- We're sitting behind a filtering NAT/PAT forwarding only the allowed ports, otherwise we're on a LAN
-- It assumes you have the xtables & geoip extensions installed in iptables
+- It assumes you have the xtables geoip extension installed in iptables on your docker host
 
 You mainly provide it
 - a list of ports you want to allow
