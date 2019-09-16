@@ -22,7 +22,7 @@
 - name: "setup cron job for automated firewall setup"
   copy:
     content: |
-      0 0 1 * * root {{ dgfw_script_path }} >> /var/log/{{ dgfw_script_logs }} 2>&1
+      0 0 1 * * root {{ dgfw_script_path }} >> {{ dgfw_script_logs }} 2>&1
       0 1 1 1 * root /bin/mv -f {{ dgfw_script_logs }} {{ dgfw_script_logs }}.1
     dest: "/etc/cron.d/docker-geofirewall-{{ dgfw_container_name }}"
     owner: "root"
